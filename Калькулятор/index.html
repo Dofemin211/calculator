@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Гарний калькулятор</title>
+  <link rel="stylesheet" href="style.css" />
+
+    
+  </style>
+</head>
+<body>
+  <section class="calculator" aria-label="калькулятор">
+    <div class="top-row">
+      <strong>Калькулятор</strong>
+      <button class="theme-btn" id="themeToggle">Темна тема</button>
+    </div>
+
+    <div class="display">
+      <div class="prev" id="prevOutput"></div>
+      <div class="current" id="currentOutput">0</div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn ac" data-action="clear">AC</button>
+      <button class="btn del" data-action="delete">⌫</button>
+      <button class="btn func" data-func="plusMinus">±</button>
+      <button class="btn operation" data-value="%">%</button>
+
+      <button class="btn func" data-func="sin">sin</button>
+      <button class="btn func" data-func="cos">cos</button>
+      <button class="btn func" data-func="tan">tan</button>
+      <button class="btn func" data-func="sqrt">√</button>
+
+      <button class="btn func" data-func="ln">ln</button>
+      <button class="btn func" data-func="log">log</button>
+      <button class="btn func" data-func="exp">exp</button>
+      <button class="btn operation" data-value="^">^</button>
+
+      <button class="btn" data-value="7">7</button>
+      <button class="btn" data-value="8">8</button>
+      <button class="btn" data-value="9">9</button>
+      <button class="btn operation" data-value="/">÷</button>
+
+      <button class="btn" data-value="4">4</button>
+      <button class="btn" data-value="5">5</button>
+      <button class="btn" data-value="6">6</button>
+      <button class="btn operation" data-value="*">×</button>
+
+      <button class="btn" data-value="1">1</button>
+      <button class="btn" data-value="2">2</button>
+      <button class="btn" data-value="3">3</button>
+      <button class="btn operation" data-value="-">−</button>
+
+      <button class="btn zero" data-value="0">0</button>
+      <button class="btn" data-value=".">.</button>
+      <button class="btn equals" data-action="equals">=</button>
+      <button class="btn operation" data-value="+">+</button>
+    </div>
+
+    <div class="history-container" aria-label="історія обчислень" id="history">
+      <div class="history-item">Історія пуста</div>
+    </div>
+  </section>
+
+  <p class="credits">Калькулятор на HTML/CSS/JS з Big.js</p>
+
+  <script src="https://cdn.jsdelivr.net/npm/big.js@6.2.1/big.min.js"></script>
+  <script>
+    const prevOutput = document.getElementById('prevOutput');
+    const currentOutput = document.getElementById('currentOutput');
+    const historyEl = document.getElementById('history');
+    const themeToggle = document.getElementById('themeToggle');
+
+    let currentValue = '0';
+    let prevValue = '';
+    let lastOperator = null;
+    let history = [];
+
+    function formatForDisplay(value) {
+      if (value === 'Error') return 'Error';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 'Error';
+      if (Math.abs(n) < 1e12 && Number.isInteger(n)) return n.toString();
+      return Number.isFinite(n) ? n.toPrecision(12).replace(/\.\.?0+$/, '') : 'Error';
+    }
+
+    function addHistory(entry) {
+      history.unshift(entry);
+      if (history.length > 20) history.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      if (history.length === 0) {
+        historyEl.innerHTML = '<div class="history-item">Історія пуста</div>';
+        return;
+      }
+      historyEl.innerHTML = history.map((x, idx) => `<div class="history-item ${idx === 0 ? 'new' : ''}">${x}</div>`).join('');
+    }
+
+    function updateDisplay() {
+      currentOutput.textContent = currentValue;
+      prevOutput.textContent = prevValue;
+    }
+
+    function appendNumber(number) {
+      if (number === '.' && currentValue.includes('.')) return;
+      if (currentValue === '0' && number !== '.') {
+        currentValue = number;
+      } else {
+        currentValue += number;
+      }
+    }
+
+    function setOperation(operator) {
+      if (currentValue === 'Error') { currentValue = '0'; }
+      if (currentValue === '' && prevValue !== '') {
+        lastOperator = operator;
+        prevValue = prevValue.slice(0, -1) + operator;
+        updateDisplay();
+        return;
+      }
+
+      if (currentValue === '') return;
+
+      if (prevValue !== '' && lastOperator) {
+        doCompute();
+      }
+
+      lastOperator = operator;
+      prevValue = formatForDisplay(currentValue) + ' ' + operator;
+      currentValue = '';
+      updateDisplay();
+    }
+
+    function doCompute() {
+      if (!lastOperator || prevValue === '' || currentValue === '') return;
+
+      try {
+        const prevNum = new Big(prevValue.split(' ')[0]);
+        const curNum = new Big(currentValue);
+        let result;
+
+        switch (lastOperator) {
+          case '+': result = prevNum.plus(curNum); break;
+          case '-': result = prevNum.minus(curNum); break;
+          case '*': result = prevNum.times(curNum); break;
+          case '/':
+            if (curNum.eq(0)) throw new Error('Div0');
+            result = prevNum.div(curNum); break;
+          case '^': result = new Big(Math.pow(Number(prevNum), Number(curNum))); break;
+          case '%': result = prevNum.times(curNum).div(100); break;
+          default: return;
+        }
+
+        currentValue = formatForDisplay(result.toString());
+        addHistory(`${prevValue} ${currentValue}`);
+      } catch (err) {
+        currentValue = 'Error';
+        addHistory(`Помилка: ${prevValue} ${lastOperator} ${currentValue}`);
+      }
+
+      prevValue = '';
+      lastOperator = null;
+      updateDisplay();
+    }
+
+    function applyFunction(fn) {
+      if (currentValue === '' || currentValue === 'Error') return;
+      const x = Number(currentValue);
+      if (!Number.isFinite(x)) return;
+
+      let res;
+      switch (fn) {
+        case 'sin': res = Math.sin(x * Math.PI / 180); break;
+        case 'cos': res = Math.cos(x * Math.PI / 180); break;
+        case 'tan': res = Math.tan(x * Math.PI / 180); break;
+        case 'sqrt': res = x < 0 ? NaN : Math.sqrt(x); break;
+        case 'ln': res = x <= 0 ? NaN : Math.log(x); break;
+        case 'log': res = x <= 0 ? NaN : Math.log10(x); break;
+        case 'exp': res = Math.exp(x); break;
+        case 'plusMinus': res = -x; break;
+        default: return;
+      }
+
+      if (!Number.isFinite(res)) {
+        currentValue = 'Error';
+        addHistory(`${fn}(${x}) = Error`);
+      } else {
+        const formatted = formatForDisplay(res);
+        addHistory(`${fn}(${x}) = ${formatted}`);
+        currentValue = formatted;
+      }
+      updateDisplay();
+    }
+
+    function clearAll() {
+      currentValue = '0';
+      prevValue = '';
+      lastOperator = null;
+      updateDisplay();
+    }
+
+    function deleteLast() {
+      if (currentValue.length <= 1) {
+        currentValue = '0';
+      } else {
+        currentValue = currentValue.slice(0, -1);
+      }
+      updateDisplay();
+    }
+
+    document.querySelector('.buttons').addEventListener('click', (e) => {
+      const target = e.target;
+      if (!target.matches('button')) return;
+
+      const action = target.dataset.action;
+      const value = target.dataset.value;
+      const func = target.dataset.func;
+
+      if (action === 'clear') {
+        clearAll();
+      } else if (action === 'delete') {
+        deleteLast();
+      } else if (action === 'equals') {
+        doCompute();
+      } else if (func) {
+        applyFunction(func);
+      } else if (value) {
+        if (['+','-','*','/','%','^'].includes(value)) {
+          setOperation(value);
+        } else {
+          appendNumber(value);
+          updateDisplay();
+        }
+      }
+    });
+
+    window.addEventListener('keydown', (event) => {
+      const key = event.key;
+      const map = {
+        's': 'sin', 'c': 'cos', 't': 'tan', 'l': 'log', 'n': 'ln', 'e': 'exp', 'r': 'sqrt'
+      };
+
+      if ((/\d/).test(key)) {
+        appendNumber(key);
+      } else if (key === '.') {
+        appendNumber(key);
+      } else if (['+','-','*','/','%','^'].includes(key)) {
+        setOperation(key);
+      } else if (key === 'Enter' || key === '=') {
+        doCompute();
+      } else if (key === 'Backspace') {
+        deleteLast();
+      } else if (key.toLowerCase() === 'a') {
+        clearAll();
+      } else if (key in map) {
+        applyFunction(map[key]);
+      }
+      updateDisplay();
+    });
+
+    themeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('light');
+      const light = document.body.classList.contains('light');
+      themeToggle.textContent = light ? 'Світла тема' : 'Темна тема';
+    });
+
+    renderHistory();
+    updateDisplay();
+  </script>
+</body>
+</html>
