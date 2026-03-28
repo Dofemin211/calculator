@@ -1,2 +1,0 @@
-# calculator
-Calculator(HTML/CSS)
